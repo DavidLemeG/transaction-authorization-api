@@ -1,3 +1,51 @@
 spring:
   application:
     name: transaction-authorization-api
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/banking
+    username: itau
+    password: itau
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+server:
+  port: 8080
+
+app:
+  aws:
+    region: sa-east-1
+    endpoint: http://localhost:4566
+    access-key: test
+    secret-key: test
+    queue-name: conta-bancaria-criada
+    consumer-threads: 4
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    com.itau: DEBUG

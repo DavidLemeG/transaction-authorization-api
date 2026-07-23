@@ -52,3 +52,23 @@ services:
         go run message-generator.go
       "
     working_dir: /home
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres-itau
+    environment:
+      POSTGRES_DB: banking
+      POSTGRES_USER: itau
+      POSTGRES_PASSWORD: itau
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U itau -d banking"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  postgres_data:
