@@ -24,7 +24,7 @@ public class AccountService {
         AccountCreatedEvent.AccountPayload payload = event.account();
 
         if (accountRepository.existsById(payload.id())) {
-            log.debug("Conta {} já existe, ignorando evento duplicado", payload.id());
+            log.trace("Conta {} já existe, ignorando evento duplicado", payload.id());
             return;
         }
 
@@ -36,7 +36,7 @@ public class AccountService {
         );
 
         accountRepository.save(account);
-        log.debug("Conta {} criada com saldo zero", payload.id());
+        log.trace("Conta {} criada com saldo zero", payload.id());
     }
 
     private OffsetDateTime toOffsetDateTime(String epochSeconds) {
