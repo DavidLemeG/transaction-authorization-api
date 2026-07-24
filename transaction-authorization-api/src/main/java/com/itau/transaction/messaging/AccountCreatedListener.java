@@ -4,6 +4,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.itau.transaction.messaging.config.SqsProperties;
 import com.itau.transaction.messaging.dto.AccountCreatedEvent;
 import com.itau.transaction.service.AccountService;
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.github.resilience4j.retry.Retry;
+import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -38,11 +42,16 @@ public class AccountCreatedListener {
     private final AtomicLong processedCount = new AtomicLong();
     private final AtomicLong startedAt = new AtomicLong();
     private final AtomicBoolean summaryLogged = new AtomicBoolean(true);
+    private final AtomicBoolean queueFoundLogged = new AtomicBoolean(false);
+    private final AtomicBoolean firstBatchLogged = new AtomicBoolean(false);
 
     private final SqsClient sqsClient;
     private final SqsProperties properties;
     private final AccountService accountService;
     private final ObjectMapper objectMapper;
+    private final Retry sqsRetry;
+    private final CircuitBreaker dbCircuitBreaker;
+    private final MeterRegistry meterRegistry;
 
     private final AtomicBoolean running = new AtomicBoolean(true);
     private ExecutorService executor;
@@ -80,6 +89,9 @@ public class AccountCreatedListener {
         while (running.get()) {
             try {
                 String queueUrl = resolveQueueUrl();
+                if (queueFoundLogged.compareAndSet(false, true)) {
+                    log.info("Fila '{}' encontrada; consumidor pronto para receber mensagens", properties.queueName());
+                }
                 pollLoop(queueUrl);
             } catch (Exception e) {
                 log.error("Fila '{}' indisponivel; nova tentativa em 10s", properties.queueName(), e);
@@ -89,9 +101,9 @@ public class AccountCreatedListener {
     }
 
     private String resolveQueueUrl() {
-        return sqsClient.getQueueUrl(GetQueueUrlRequest.builder()
+        return Retry.decorateSupplier(sqsRetry, () -> sqsClient.getQueueUrl(GetQueueUrlRequest.builder()
                 .queueName(properties.queueName())
-                .build()).queueUrl();
+                .build()).queueUrl()).get();
     }
 
     private void pollLoop(String queueUrl) {
@@ -111,38 +123,52 @@ public class AccountCreatedListener {
     }
 
     private List<Message> receiveMessages(String queueUrl) {
-        return sqsClient.receiveMessage(ReceiveMessageRequest.builder()
+        return Retry.decorateSupplier(sqsRetry, () -> sqsClient.receiveMessage(ReceiveMessageRequest.builder()
                 .queueUrl(queueUrl)
                 .maxNumberOfMessages(MAX_MESSAGES_PER_POLL)
                 .waitTimeSeconds(LONG_POLL_SECONDS)
-                .build()).messages();
+                .build()).messages()).get();
     }
 
     private void processBatch(String queueUrl, List<Message> messages) {
         List<DeleteMessageBatchRequestEntry> processed = new ArrayList<>();
 
         for (Message message : messages) {
+            if (dbCircuitBreaker.getState() == CircuitBreaker.State.OPEN) {
+                log.warn("Circuit breaker do banco aberto; pausando consumo ate o Postgres normalizar " +
+                        "(mensagens restantes deste lote nao serao processadas nem deletadas)");
+                break;
+            }
             try {
                 AccountCreatedEvent event = objectMapper.readValue(message.body(), AccountCreatedEvent.class);
-                accountService.createIfAbsent(event);
+                CircuitBreaker.decorateRunnable(dbCircuitBreaker, () -> accountService.createIfAbsent(event)).run();
 
                 processed.add(DeleteMessageBatchRequestEntry.builder()
                         .id(message.messageId())
                         .receiptHandle(message.receiptHandle())
                         .build());
+                meterRegistry.counter("sqs.messages.consumed").increment();
 
+            } catch (CallNotPermittedException e) {
+                log.warn("Circuit breaker do banco aberto; mensagem {} sera reentregue pela fila", message.messageId());
+                break;
             } catch (Exception e) {
                 log.error("Falha ao processar mensagem {}; será reentregue pela fila", message.messageId(), e);
+                meterRegistry.counter("sqs.messages.failed").increment();
             }
         }
 
         if (!processed.isEmpty()) {
-            sqsClient.deleteMessageBatch(DeleteMessageBatchRequest.builder()
-                    .queueUrl(queueUrl)
-                    .entries(processed)
-                    .build());
+            deleteBatch(queueUrl, processed);
             recordProgress(processed.size());
         }
+    }
+
+    private void deleteBatch(String queueUrl, List<DeleteMessageBatchRequestEntry> entries) {
+        Retry.decorateRunnable(sqsRetry, () -> sqsClient.deleteMessageBatch(DeleteMessageBatchRequest.builder()
+                .queueUrl(queueUrl)
+                .entries(entries)
+                .build())).run();
     }
 
     private void sleepQuietly(int seconds) {
@@ -157,6 +183,10 @@ public class AccountCreatedListener {
     private void recordProgress(int batchSize) {
         startedAt.compareAndSet(0, System.currentTimeMillis());
         summaryLogged.set(false);
+
+        if (firstBatchLogged.compareAndSet(false, true)) {
+            log.info("Primeiro lote recebido; iniciando processamento");
+        }
 
         long total = processedCount.addAndGet(batchSize);
         long previous = total - batchSize;

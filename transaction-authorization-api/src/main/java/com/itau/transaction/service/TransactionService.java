@@ -7,6 +7,8 @@ import com.itau.transaction.domain.transaction.TransactionStatus;
 import com.itau.transaction.domain.transaction.TransactionType;
 import com.itau.transaction.repository.AccountRepository;
 import com.itau.transaction.repository.TransactionRepository;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -22,9 +24,19 @@ public class TransactionService {
 
     private final AccountRepository accountRepository;
     private final TransactionRepository transactionRepository;
+    private final MeterRegistry meterRegistry;
 
     @Transactional
     public AuthorizationResult authorize(AuthorizationCommand command) {
+        Timer.Sample sample = Timer.start(meterRegistry);
+        try {
+            return doAuthorize(command);
+        } finally {
+            sample.stop(meterRegistry.timer("transaction.authorization.latency"));
+        }
+    }
+
+    private AuthorizationResult doAuthorize(AuthorizationCommand command) {
 
         // Idempotencia: transactionId e controlado pelo cliente (UUID na URL).
         // Se a mesma requisicao chegar duas vezes (retry de rede), retornamos a resposta
@@ -57,6 +69,11 @@ public class TransactionService {
         );
 
         transactionRepository.save(transaction);
+
+        meterRegistry.counter("transaction.processed",
+                        "type", command.type().name(),
+                        "status", opResult.status().name())
+                .increment();
 
         log.info("Transacao {} {} para conta {}: {} (saldo {} -> {})",
                 command.transactionId(), command.type(), account.getId(),
