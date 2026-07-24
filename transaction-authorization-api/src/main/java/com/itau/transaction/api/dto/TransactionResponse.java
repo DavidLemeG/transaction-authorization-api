@@ -54,7 +54,12 @@ public record TransactionResponse(
                 ),
                 new AccountData(
                         acc.getId(),
-                        new Balance(acc.getBalance(), acc.getCurrency())
+                        // Usa o saldo gravado na transacao (nao o saldo "ao vivo" da conta):
+                        // no reenvio idempotente, tx.getNewBalance() e o saldo de quando ESTA
+                        // transacao foi processada, evitando misturar um resultado congelado
+                        // (ex.: FAILED por saldo insuficiente) com o saldo atual da conta, que
+                        // pode ja ter mudado por outras transacoes.
+                        new Balance(tx.getNewBalance(), acc.getCurrency())
                 )
         );
     }

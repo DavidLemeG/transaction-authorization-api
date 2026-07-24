@@ -5,6 +5,7 @@ import com.itau.transaction.domain.exception.InsufficientFundsException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -28,6 +29,17 @@ public class GlobalExceptionHandler {
         log.warn("Saldo insuficiente: {}", ex.getMessage());
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage());
         problem.setTitle("Saldo insuficiente");
+        return problem;
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ProblemDetail handleMalformedRequest(HttpMessageNotReadableException ex) {
+        log.warn("Corpo da requisição malformado ou com valor inválido: {}", ex.getMessage());
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.BAD_REQUEST,
+                "Corpo da requisição malformado ou com valor inválido (ex.: type fora de CREDIT/DEBIT)"
+        );
+        problem.setTitle("Requisição inválida");
         return problem;
     }
 
