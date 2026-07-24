@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.itau.transaction.domain.account.Account;
 import com.itau.transaction.domain.account.AccountStatus;
 import com.itau.transaction.domain.exception.AccountNotFoundException;
+import com.itau.transaction.domain.exception.InsufficientFundsException;
 import com.itau.transaction.domain.transaction.Transaction;
 import com.itau.transaction.domain.transaction.TransactionStatus;
 import com.itau.transaction.domain.transaction.TransactionType;
@@ -146,6 +147,30 @@ class TransactionControllerTest {
                         .contentType("application/json")
                         .content(requestBody(accountId.toString(), "DEBIT", "10.00", "BRL")))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void insufficientFundsExceptionRetorna422() throws Exception {
+        // Salvaguarda defensiva (ADR 0009): o fluxo normal nunca lanca essa excecao
+        // (TransactionService checa canDebit antes de debit), mas o handler precisa
+        // funcionar corretamente se algum dia for acionado.
+        when(transactionService.authorize(any()))
+                .thenThrow(new InsufficientFundsException(accountId, new BigDecimal("10.00"), new BigDecimal("20.00")));
+
+        mockMvc.perform(post("/transactions/{transactionId}", transactionId)
+                        .contentType("application/json")
+                        .content(requestBody(accountId.toString(), "DEBIT", "20.00", "BRL")))
+                .andExpect(status().isUnprocessableEntity());
+    }
+
+    @Test
+    void erroInesperadoRetorna500() throws Exception {
+        when(transactionService.authorize(any())).thenThrow(new RuntimeException("falha inesperada"));
+
+        mockMvc.perform(post("/transactions/{transactionId}", transactionId)
+                        .contentType("application/json")
+                        .content(requestBody(accountId.toString(), "CREDIT", "10.00", "BRL")))
+                .andExpect(status().isInternalServerError());
     }
 
     @Test

@@ -100,7 +100,10 @@ public class AccountCreatedListener {
         }
     }
 
-    private String resolveQueueUrl() {
+    // Visibilidade de pacote (nao private) de proposito: permite que
+    // AccountCreatedListenerTest chame estes metodos diretamente, sem
+    // precisar de threads reais nem de um SqsClient/LocalStack de verdade.
+    String resolveQueueUrl() {
         return Retry.decorateSupplier(sqsRetry, () -> sqsClient.getQueueUrl(GetQueueUrlRequest.builder()
                 .queueName(properties.queueName())
                 .build()).queueUrl()).get();
@@ -122,7 +125,7 @@ public class AccountCreatedListener {
         }
     }
 
-    private List<Message> receiveMessages(String queueUrl) {
+    List<Message> receiveMessages(String queueUrl) {
         return Retry.decorateSupplier(sqsRetry, () -> sqsClient.receiveMessage(ReceiveMessageRequest.builder()
                 .queueUrl(queueUrl)
                 .maxNumberOfMessages(MAX_MESSAGES_PER_POLL)
@@ -130,7 +133,7 @@ public class AccountCreatedListener {
                 .build()).messages()).get();
     }
 
-    private void processBatch(String queueUrl, List<Message> messages) {
+    void processBatch(String queueUrl, List<Message> messages) {
         List<DeleteMessageBatchRequestEntry> processed = new ArrayList<>();
 
         for (Message message : messages) {
@@ -164,7 +167,7 @@ public class AccountCreatedListener {
         }
     }
 
-    private void deleteBatch(String queueUrl, List<DeleteMessageBatchRequestEntry> entries) {
+    void deleteBatch(String queueUrl, List<DeleteMessageBatchRequestEntry> entries) {
         Retry.decorateRunnable(sqsRetry, () -> sqsClient.deleteMessageBatch(DeleteMessageBatchRequest.builder()
                 .queueUrl(queueUrl)
                 .entries(entries)
@@ -196,7 +199,7 @@ public class AccountCreatedListener {
         }
     }
 
-    private void reportSummaryIfDrained() {
+    void reportSummaryIfDrained() {
         if (processedCount.get() > 0 && summaryLogged.compareAndSet(false, true)) {
             logThroughput("Fila drenada", processedCount.get());
         }

@@ -124,23 +124,33 @@ A API sobe em `http://localhost:8080`.
 cd transaction-authorization-api
 mvn clean test
 ```
-35 testes: unitários de domínio (`AccountTest`, sem Spring), Mockito
-(`TransactionServiceTest`, `TransactionRecorderTest`, `AccountServiceTest`),
-mapeamento de DTO (`TransactionResponseTest`), API via MockMvc
-(`TransactionControllerTest`) e dois testes de concorrência contra PostgreSQL
-real via Testcontainers (`ConcurrentDebitTest`):
+48 testes: unitários de domínio (`AccountTest`, sem Spring), Mockito
+(`TransactionServiceTest`, `TransactionRecorderTest`, `AccountServiceTest`,
+`AccountCreatedListenerTest`), mapeamento de DTO (`TransactionResponseTest`),
+API via MockMvc (`TransactionControllerTest`) e dois testes de concorrência
+contra PostgreSQL real via Testcontainers (`ConcurrentDebitTest`):
 - 10 threads debitando 80 simultaneamente de uma conta com saldo 100 → só uma
   aprovada, saldo final nunca negativo (prova o lock pessimista).
 - 10 threads enviando a **mesma** `transactionId` simultaneamente → só uma
   processa o crédito, as demais recebem a resposta idempotente da vencedora
   (prova a correção do [ADR 0014](docs/adr/0014-transaction-persistable-requires-new.md)).
 
+`AccountCreatedListenerTest` testa o consumidor SQS sem threads reais nem
+LocalStack: `SqsClient`/`AccountService` são mocks, mas `Retry`/`CircuitBreaker`
+são instâncias reais do Resilience4j (configuradas para serem rápidas em
+teste) — prova que o retry de fato tenta de novo após falha transitória, e
+que o circuit breaker realmente para de processar o resto do lote quando abre
+no meio de um lote de mensagens.
+
 Relatório de cobertura (JaCoCo) gerado em
-`transaction-authorization-api/target/site/jacoco/index.html` — 72% de
-instruções cobertas no total; domínio, service e API ficam entre 80–100%,
-o pacote `messaging` (orquestração de threads/AWS SDK do consumidor SQS) tem
-cobertura mais baixa por não valer o custo de um teste de threading dedicado
-neste prazo — ver [O que faria com mais tempo](#o-que-faria-com-mais-tempo).
+`transaction-authorization-api/target/site/jacoco/index.html` — **86% de
+instruções cobertas no total** (meta era 85%). Domínio, service, API e DTO
+ficam entre 97–100%; o pacote `messaging` foi de 25% para 63% depois do
+`AccountCreatedListenerTest` — o que resta ali (`runConsumer`/`pollLoop`/
+`start`/`stop`, os laços `while(running.get())` de orquestração de threads)
+não tem teste de unidade dedicado por ser controle de thread de baixo valor
+de teste isolado, não lógica de negócio — ver
+[O que faria com mais tempo](#o-que-faria-com-mais-tempo).
 
 ### Testando a API manualmente
 Coleção pronta em [`transaction-authorization-api/requests.http`](transaction-authorization-api/requests.http)
@@ -226,11 +236,12 @@ Itens conscientemente deixados como melhoria futura, com o motivador de cada um:
 - **Observabilidade distribuída (OpenTelemetry/tracing)** — os logs e métricas
   atuais são suficientes para uma instância isolada, mas não correlacionam
   uma requisição através de múltiplas instâncias/serviços.
-- **Teste de threading dedicado para `AccountCreatedListener`**: a lógica de
-  polling/ack/circuit breaker do consumidor SQS não tem teste unitário próprio
-  (só é exercitada indiretamente pela suíte de testes iniciando o contexto
-  Spring); teria valor extrair a lógica de decisão (quando abrir/parar o lote)
-  para um componente testável sem threads reais.
+- **Teste da orquestração de threads do `AccountCreatedListener`**: a lógica
+  de negócio do consumidor (`processBatch`, retry, circuit breaker) já tem
+  teste dedicado (`AccountCreatedListenerTest`); o que resta são os laços
+  `while(running.get())` de `runConsumer`/`pollLoop` e o `start()`/`stop()` —
+  testar isso de verdade exigiria rodar threads reais com timing controlado,
+  custo alto para o valor marginal (é orquestração, não regra de negócio).
 
 ## Regras do enunciado
 
