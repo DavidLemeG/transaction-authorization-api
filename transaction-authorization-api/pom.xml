@@ -18,6 +18,8 @@
 		<java.version>17</java.version>
 		<aws.sdk.version>2.28.29</aws.sdk.version>
 		<resilience4j.version>2.2.0</resilience4j.version>
+		<testcontainers.version>1.21.4</testcontainers.version>
+		<springdoc.version>2.6.0</springdoc.version>
 	</properties>
 
 	<dependencyManagement>
@@ -26,6 +28,13 @@
 				<groupId>software.amazon.awssdk</groupId>
 				<artifactId>bom</artifactId>
 				<version>${aws.sdk.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+			<dependency>
+				<groupId>org.testcontainers</groupId>
+				<artifactId>testcontainers-bom</artifactId>
+				<version>${testcontainers.version}</version>
 				<type>pom</type>
 				<scope>import</scope>
 			</dependency>
@@ -81,6 +90,19 @@
 			<version>${resilience4j.version}</version>
 		</dependency>
 
+		<!-- OpenAPI / Swagger -->
+		<dependency>
+			<groupId>org.springdoc</groupId>
+			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+			<version>${springdoc.version}</version>
+		</dependency>
+
+		<!-- Metricas -->
+		<dependency>
+			<groupId>io.micrometer</groupId>
+			<artifactId>micrometer-registry-prometheus</artifactId>
+		</dependency>
+
 		<!-- Lombok -->
 		<dependency>
 			<groupId>org.projectlombok</groupId>
@@ -99,6 +121,16 @@
 			<artifactId>h2</artifactId>
 			<scope>test</scope>
 		</dependency>
+		<dependency>
+			<groupId>org.testcontainers</groupId>
+			<artifactId>postgresql</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.testcontainers</groupId>
+			<artifactId>junit-jupiter</artifactId>
+			<scope>test</scope>
+		</dependency>
 	</dependencies>
 
 	<build>
@@ -114,6 +146,26 @@
 						</exclude>
 					</excludes>
 				</configuration>
+			</plugin>
+			<plugin>
+				<groupId>org.jacoco</groupId>
+				<artifactId>jacoco-maven-plugin</artifactId>
+				<version>0.8.12</version>
+				<executions>
+					<execution>
+						<id>prepare-agent</id>
+						<goals>
+							<goal>prepare-agent</goal>
+						</goals>
+					</execution>
+					<execution>
+						<id>report</id>
+						<phase>test</phase>
+						<goals>
+							<goal>report</goal>
+						</goals>
+					</execution>
+				</executions>
 			</plugin>
 		</plugins>
 	</build>
