@@ -1,0 +1,7 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://postgres:5432/banking
+
+app:
+  aws:
+    endpoint: http://localstack:4566

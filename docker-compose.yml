@@ -70,5 +70,27 @@ services:
       timeout: 3s
       retries: 5
 
+  app:
+    build:
+      context: ./transaction-authorization-api
+    container_name: transaction-authorization-api
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    profiles:
+      - app
+
 volumes:
   postgres_data:
