@@ -6,22 +6,35 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.springframework.data.domain.Persistable;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
+/**
+ * Implementa Persistable pois o id e atribuido pelo cliente (nao ha
+ * @GeneratedValue nem @Version) -- sem isso, o Spring Data JPA considera
+ * qualquer entidade com id nao-nulo como "nao nova" e chama merge() em vez de
+ * persist() no save(), o que faz duas transacoes concorrentes com o MESMO
+ * transactionId se sobrescreverem silenciosamente em vez de colidir na
+ * constraint de chave primaria. Ver ADR 0014.
+ */
 @Entity
 @Table(name = "transactions")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Transaction {
+public class Transaction implements Persistable<UUID> {
 
     @Id
     private UUID id;
+
+    @Transient
+    private boolean isNew = false;
 
     @Column(name = "account_id", nullable = false)
     private UUID accountId;
@@ -65,5 +78,6 @@ public class Transaction {
         this.previousBalance = previousBalance;
         this.newBalance = newBalance;
         this.createdAt = OffsetDateTime.now();
+        this.isNew = true;
     }
 }

@@ -117,4 +117,47 @@ class ConcurrentDebitTest {
         assertThat(finalAccount.getBalance()).isEqualByComparingTo(new BigDecimal("20.00"));
         assertThat(finalAccount.getBalance()).isGreaterThanOrEqualTo(BigDecimal.ZERO);
     }
+
+    /**
+     * Reproduz duas (ou mais) requisicoes verdadeiramente concorrentes com o
+     * MESMO transactionId (ex.: cliente retenta em paralelo apos um timeout,
+     * sem esperar a primeira resposta). Antes da correcao (Transaction virar
+     * Persistable + TransactionRecorder com REQUIRES_NEW), cada thread
+     * reaplicava o credito por cima da anterior via merge() silencioso,
+     * multiplicando o saldo. Agora, so a primeira deve vencer.
+     */
+    @Test
+    void mesmoTransactionIdConcorrenteAplicaOCreditoApenasUmaVez() throws Exception {
+        UUID sameTransactionId = UUID.randomUUID();
+
+        ExecutorService executor = Executors.newFixedThreadPool(CONCURRENT_REQUESTS);
+        CountDownLatch readyLatch = new CountDownLatch(CONCURRENT_REQUESTS);
+        CountDownLatch startLatch = new CountDownLatch(1);
+
+        List<Callable<AuthorizationResult>> tasks = IntStream.range(0, CONCURRENT_REQUESTS)
+                .mapToObj(i -> (Callable<AuthorizationResult>) () -> {
+                    readyLatch.countDown();
+                    startLatch.await();
+                    AuthorizationCommand command = new AuthorizationCommand(
+                            sameTransactionId, accountId, TransactionType.CREDIT, new BigDecimal("100.00"), "BRL");
+                    return transactionService.authorize(command);
+                })
+                .collect(Collectors.toList());
+
+        List<Future<AuthorizationResult>> futures = tasks.stream().map(executor::submit).collect(Collectors.toList());
+
+        readyLatch.await();
+        startLatch.countDown();
+
+        for (Future<AuthorizationResult> future : futures) {
+            AuthorizationResult result = future.get();
+            assertThat(result.transaction().getId()).isEqualTo(sameTransactionId);
+        }
+        executor.shutdown();
+
+        Account finalAccount = accountRepository.findById(accountId).orElseThrow();
+
+        assertThat(transactionRepository.count()).isEqualTo(1);
+        assertThat(finalAccount.getBalance()).isEqualByComparingTo(new BigDecimal("200.00"));
+    }
 }
