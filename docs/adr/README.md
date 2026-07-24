@@ -18,6 +18,7 @@ Registro das decisões técnicas relevantes do projeto, formato
 | [0011](0011-resilience4j.md) | Resilience4j: retry com full jitter + circuit breaker |
 | [0012](0012-flyway.md) | Flyway para versionamento de schema |
 | [0013](0013-idempotent-replay-balance-snapshot.md) | Reenvio idempotente mostra o saldo da época da transação, não o saldo atual |
+| [0014](0014-transaction-persistable-requires-new.md) | Transaction como Persistable + TransactionRecorder com REQUIRES_NEW (corrige corrida de idempotência) |
 
 Decisões relacionadas a deploy/infraestrutura, com o mesmo nível de detalhe,
 estão em documentos dedicados por serem melhor representadas com diagramas:

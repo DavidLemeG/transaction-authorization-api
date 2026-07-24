@@ -124,16 +124,19 @@ A API sobe em `http://localhost:8080`.
 cd transaction-authorization-api
 mvn clean test
 ```
-29 testes: unitários de domínio (`AccountTest`, sem Spring), Mockito
-(`TransactionServiceTest`, `AccountServiceTest`), mapeamento de DTO
-(`TransactionResponseTest`), API via MockMvc (`TransactionControllerTest`) e
-um teste de concorrência contra PostgreSQL real via Testcontainers
-(`ConcurrentDebitTest`) que prova o lock pessimista: 10 threads debitando 80
-simultaneamente de uma conta com saldo 100 → só uma aprovada, saldo final
-nunca negativo.
+35 testes: unitários de domínio (`AccountTest`, sem Spring), Mockito
+(`TransactionServiceTest`, `TransactionRecorderTest`, `AccountServiceTest`),
+mapeamento de DTO (`TransactionResponseTest`), API via MockMvc
+(`TransactionControllerTest`) e dois testes de concorrência contra PostgreSQL
+real via Testcontainers (`ConcurrentDebitTest`):
+- 10 threads debitando 80 simultaneamente de uma conta com saldo 100 → só uma
+  aprovada, saldo final nunca negativo (prova o lock pessimista).
+- 10 threads enviando a **mesma** `transactionId` simultaneamente → só uma
+  processa o crédito, as demais recebem a resposta idempotente da vencedora
+  (prova a correção do [ADR 0014](docs/adr/0014-transaction-persistable-requires-new.md)).
 
 Relatório de cobertura (JaCoCo) gerado em
-`transaction-authorization-api/target/site/jacoco/index.html` — 71% de
+`transaction-authorization-api/target/site/jacoco/index.html` — 72% de
 instruções cobertas no total; domínio, service e API ficam entre 80–100%,
 o pacote `messaging` (orquestração de threads/AWS SDK do consumidor SQS) tem
 cobertura mais baixa por não valer o custo de um teste de threading dedicado
@@ -177,6 +180,7 @@ consequências e alternativas consideradas para cada uma:
 11. [Resilience4j: retry com full jitter + circuit breaker](docs/adr/0011-resilience4j.md)
 12. [Flyway para versionamento de schema](docs/adr/0012-flyway.md)
 13. [Reenvio idempotente mostra o saldo da época da transação](docs/adr/0013-idempotent-replay-balance-snapshot.md)
+14. [Transaction como Persistable + TransactionRecorder com REQUIRES_NEW](docs/adr/0014-transaction-persistable-requires-new.md)
 
 ## Observabilidade
 
@@ -207,11 +211,6 @@ Itens conscientemente deixados como melhoria futura, com o motivador de cada um:
   no LocalStack deste projeto por não ser o foco do desafio, mas está no
   [diagrama de deploy](docs/diagrams/cloud-deployment.md) como parte da
   arquitetura de produção.
-- **Corrida verdadeiramente concorrente no mesmo `transactionId`**: a
-  idempotência cobre o caso comum (retry sequencial); duas requisições
-  simultâneas com o mesmo id ainda podem colidir em `DataIntegrityViolationException`
-  em vez de retornar a resposta idempotente — detalhado no
-  [ADR 0010](docs/adr/0010-api-idempotency.md).
 - **Cache de leitura (Redis)** para consulta de saldo em alta escala, caso um
   endpoint de consulta (fora do escopo do desafio) seja adicionado.
 - **Particionamento/sharding** da tabela `transactions` por data, relevante

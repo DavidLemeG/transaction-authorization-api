@@ -19,7 +19,13 @@ sem tocar no saldo da conta novamente.
 - Reenviar a mesma requisição (mesmo `transactionId`) é seguro — não há
   double debit/credit. Coberto por teste
   (`TransactionServiceTest.reenvioDoMesmoTransactionIdRetornaTransacaoExistenteSemReprocessar`).
-- **Gap conhecido, documentado no código** (`TransactionService.java`,
+- **Atualização (ver [ADR 0014](0014-transaction-persistable-requires-new.md)):**
+  o gap de corrida verdadeiramente concorrente descrito abaixo nesta seção foi
+  investigado e corrigido. O mecanismo real era mais grave do que o suposto
+  aqui originalmente — não era uma colisão segura de chave primária, e sim uma
+  sobrescrita silenciosa via `merge()` do JPA (saldo aplicado múltiplas vezes
+  sem nenhum erro). Texto original mantido abaixo por completude histórica.
+- ~~Gap conhecido, documentado no código~~ (`TransactionService.java`,
   comentário ao final da classe): duas requisições **verdadeiramente
   simultâneas** com o mesmo `transactionId` ainda podem colidir — a segunda
   thread pode passar pelo `findById` antes da primeira commitar, e then falhar
