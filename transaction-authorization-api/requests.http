@@ -1,0 +1,109 @@
+### API de Autorização de Transações — coleção de requisições
+### Uso no IntelliJ: abra este arquivo e clique no icone de "play" ao lado de cada requisição.
+### Fora do IntelliJ: use `curl` copiando o corpo de cada bloco, ou importe em Insomnia/Postman.
+###
+### Antes de rodar, substitua {{accountId}} por um UUID real de uma conta ja
+### criada pelo consumidor SQS (ex.: SELECT id FROM accounts LIMIT 1; no Postgres).
+### Cada bloco usa um {{transactionId}} diferente — troque por um UUID novo a
+### cada execução (exceto no bloco de idempotência, que reusa de propósito).
+
+@baseUrl = http://localhost:8080
+@accountId = 5b19c8b6-0cc4-4c72-a989-0c2ee15fa975
+
+### 1) Crédito aprovado
+POST {{baseUrl}}/transactions/8e8ae808-b154-48b5-9f3e-553935cc4543
+Content-Type: application/json
+
+{
+  "accountId": "{{accountId}}",
+  "type": "CREDIT",
+  "amount": { "value": 100.00, "currency": "BRL" }
+}
+
+### 2) Débito aprovado (executar depois do crédito acima, mesma conta)
+POST {{baseUrl}}/transactions/7c1b1a2a-1111-4a2a-9a2a-111111111111
+Content-Type: application/json
+
+{
+  "accountId": "{{accountId}}",
+  "type": "DEBIT",
+  "amount": { "value": 40.00, "currency": "BRL" }
+}
+
+### 3) Débito recusado por saldo insuficiente (HTTP 200, status FAILED, com reason)
+POST {{baseUrl}}/transactions/9d2c2b3b-2222-4b3b-8b3b-222222222222
+Content-Type: application/json
+
+{
+  "accountId": "{{accountId}}",
+  "type": "DEBIT",
+  "amount": { "value": 999999.00, "currency": "BRL" }
+}
+
+### 4) Idempotência: reenviar o transactionId do passo 2 não redebita
+POST {{baseUrl}}/transactions/7c1b1a2a-1111-4a2a-9a2a-111111111111
+Content-Type: application/json
+
+{
+  "accountId": "{{accountId}}",
+  "type": "DEBIT",
+  "amount": { "value": 40.00, "currency": "BRL" }
+}
+
+### 5) Corner case: accountId ausente -> HTTP 400
+POST {{baseUrl}}/transactions/3e3e3e3e-3333-4e3e-9e3e-333333333333
+Content-Type: application/json
+
+{
+  "type": "CREDIT",
+  "amount": { "value": 10.00, "currency": "BRL" }
+}
+
+### 6) Corner case: type inválido -> HTTP 400
+POST {{baseUrl}}/transactions/4f4f4f4f-4444-4f4f-9f4f-444444444444
+Content-Type: application/json
+
+{
+  "accountId": "{{accountId}}",
+  "type": "TRANSFER",
+  "amount": { "value": 10.00, "currency": "BRL" }
+}
+
+### 7) Corner case: valor zero -> HTTP 400
+POST {{baseUrl}}/transactions/5a5a5a5a-5555-4a5a-9a5a-555555555555
+Content-Type: application/json
+
+{
+  "accountId": "{{accountId}}",
+  "type": "CREDIT",
+  "amount": { "value": 0, "currency": "BRL" }
+}
+
+### 8) Corner case: moeda fora do padrão ISO4217 (2 letras) -> HTTP 400
+POST {{baseUrl}}/transactions/6b6b6b6b-6666-4b6b-9b6b-666666666666
+Content-Type: application/json
+
+{
+  "accountId": "{{accountId}}",
+  "type": "CREDIT",
+  "amount": { "value": 10.00, "currency": "BR" }
+}
+
+### 9) Corner case: conta inexistente -> HTTP 404
+POST {{baseUrl}}/transactions/7c7c7c7c-7777-4c7c-9c7c-777777777777
+Content-Type: application/json
+
+{
+  "accountId": "00000000-0000-0000-0000-000000000000",
+  "type": "CREDIT",
+  "amount": { "value": 10.00, "currency": "BRL" }
+}
+
+### Health check
+GET {{baseUrl}}/actuator/health
+
+### Métricas Prometheus
+GET {{baseUrl}}/actuator/prometheus
+
+### OpenAPI JSON
+GET {{baseUrl}}/v3/api-docs
