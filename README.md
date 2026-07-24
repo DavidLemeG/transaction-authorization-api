@@ -124,11 +124,12 @@ A API sobe em `http://localhost:8080`.
 cd transaction-authorization-api
 mvn clean test
 ```
-48 testes: unitários de domínio (`AccountTest`, sem Spring), Mockito
+53 testes: unitários de domínio (`AccountTest`, sem Spring), Mockito
 (`TransactionServiceTest`, `TransactionRecorderTest`, `AccountServiceTest`,
 `AccountCreatedListenerTest`), mapeamento de DTO (`TransactionResponseTest`),
-API via MockMvc (`TransactionControllerTest`) e dois testes de concorrência
-contra PostgreSQL real via Testcontainers (`ConcurrentDebitTest`):
+API via MockMvc (`TransactionControllerTest`), um teste de integração HTTP
+de ponta a ponta (`TransactionHttpIntegrationTest`) e dois testes de
+concorrência contra PostgreSQL real via Testcontainers (`ConcurrentDebitTest`):
 - 10 threads debitando 80 simultaneamente de uma conta com saldo 100 → só uma
   aprovada, saldo final nunca negativo (prova o lock pessimista).
 - 10 threads enviando a **mesma** `transactionId` simultaneamente → só uma
@@ -142,10 +143,16 @@ teste) — prova que o retry de fato tenta de novo após falha transitória, e
 que o circuit breaker realmente para de processar o resto do lote quando abre
 no meio de um lote de mensagens.
 
+`TransactionHttpIntegrationTest` é o único teste que não mocka nada: requisição
+HTTP real (`TestRestTemplate`) → `TransactionController` → `TransactionService`/
+`TransactionRecorder` → repositórios → PostgreSQL real (Testcontainers),
+cobrindo os 3 cenários do enunciado, idempotência e conta inexistente
+exatamente como um cliente real chamaria a API.
+
 Relatório de cobertura (JaCoCo) gerado em
-`transaction-authorization-api/target/site/jacoco/index.html` — **86% de
+`transaction-authorization-api/target/site/jacoco/index.html` — **85% de
 instruções cobertas no total** (meta era 85%). Domínio, service, API e DTO
-ficam entre 97–100%; o pacote `messaging` foi de 25% para 63% depois do
+ficam entre 97–100%; o pacote `messaging` foi de 25% para ~63% depois do
 `AccountCreatedListenerTest` — o que resta ali (`runConsumer`/`pollLoop`/
 `start`/`stop`, os laços `while(running.get())` de orquestração de threads)
 não tem teste de unidade dedicado por ser controle de thread de baixo valor
