@@ -68,7 +68,19 @@ Justificativas completas de cada escolha estão nos [ADRs](docs/adr/).
 
 **Pré-requisitos:** Docker Desktop, Java 17, Maven (ou use o `mvnw` incluído).
 
-### 1. Subir a infraestrutura (Postgres + LocalStack/SQS)
+### 1. Clonar o repositório
+
+```bash
+git clone https://github.com/DavidLemeG/transaction-authorization-api.git
+cd transaction-authorization-api
+```
+
+Todos os comandos abaixo (`start.ps1`/`start.sh`, `docker compose`) são
+executados a partir dessa pasta raiz — é onde ficam o `docker-compose.yml` e
+os scripts. O módulo Maven da aplicação fica num subdiretório **com o mesmo
+nome** (`transaction-authorization-api/`) — o passo 3 já entra nele.
+
+### 2. Subir a infraestrutura (Postgres + LocalStack/SQS)
 
 Windows (PowerShell):
 ```powershell
@@ -95,7 +107,7 @@ de app), `-Reset`/`--reset` (limpa Postgres e a fila antes de subir).
 > reexecuta o `message-generator` e duplica as 100k mensagens na fila. Use
 > sempre `docker compose up -d localstack postgres` (é o que os scripts acima fazem).
 
-### 2. Rodar a aplicação
+### 3. Rodar a aplicação
 
 **Localmente (debug fácil, IntelliJ ou Maven):**
 ```bash
