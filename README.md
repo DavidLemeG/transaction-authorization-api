@@ -172,21 +172,32 @@ de teste isolado, não lógica de negócio — ver
 [O que faria com mais tempo](#o-que-faria-com-mais-tempo).
 
 ### Testando a API manualmente
-Coleção pronta em [`transaction-authorization-api/requests.http`](transaction-authorization-api/requests.http)
-(formato nativo do IntelliJ HTTP Client — funciona também colando os `curl`
-equivalentes em qualquer terminal). Cobre os 3 cenários do enunciado (crédito
-aprovado, débito aprovado, débito recusado) mais idempotência e corner cases
-de validação.
+Duas coleções prontas, com os mesmos cenários (3 do enunciado + idempotência
++ corner cases de validação):
+- [`transaction-authorization-api/requests.http`](transaction-authorization-api/requests.http)
+  — formato nativo do IntelliJ HTTP Client.
+- [`transaction-authorization-api/insomnia_collection.json`](transaction-authorization-api/insomnia_collection.json)
+  — importar no Insomnia via `Application menu → Preferences → Data → Import Data → From File`.
 
-Exemplo rápido:
+Exemplo rápido via curl:
 ```bash
 curl -X POST http://localhost:8080/transactions/8e8ae808-b154-48b5-9f3e-553935cc4543 \
   -H "Content-Type: application/json" \
   -d '{"accountId":"<uuid-de-uma-conta-existente>","type":"CREDIT","amount":{"value":100.00,"currency":"BRL"}}'
 ```
 
-> Para pegar um `accountId` real após popular a fila:
-> `docker exec postgres-itau psql -U itau -d banking -c "SELECT id FROM accounts LIMIT 1;"`
+> ⚠️ **Antes de rodar qualquer cenário, é preciso pegar um `accountId` real.**
+> A API não tem nenhum endpoint de consulta/listagem (é só autorização de
+> crédito/débito, fora do escopo do desafio) e os IDs das 100k contas são
+> gerados aleatoriamente pelo `message-generator` — não tem como descobrir um
+> `accountId` válido só pela API ou pelas coleções. Consulte direto no Postgres:
+> ```bash
+> docker exec postgres-itau psql -U itau -d banking -c "SELECT id FROM accounts LIMIT 5;"
+> ```
+> Copie um dos UUIDs retornados e cole no lugar de `accountId` (na variável
+> `accountId` do ambiente, se estiver usando o Insomnia). Não muda a cada
+> requisição — só precisa trocar se resetar o banco (`start.ps1 -Reset`) ou
+> quiser testar outra conta.
 
 ### Swagger UI
 `http://localhost:8080/swagger-ui.html` (spec JSON em `/v3/api-docs`).

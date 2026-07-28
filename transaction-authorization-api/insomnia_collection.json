@@ -1,0 +1,342 @@
+{
+  "_type": "export",
+  "__export_format": 4,
+  "__export_date": "2026-07-25T00:00:00.000Z",
+  "__export_source": "insomnia.desktop.app:v8.0.0",
+  "resources": [
+    {
+      "_id": "wrk_itau_transactions",
+      "_type": "workspace",
+      "parentId": null,
+      "name": "API de Autorização de Transações — Itaú",
+      "description": "Desafio técnico Itaú Unibanco. Crédito/débito, idempotência, corner cases de validação e endpoints de observabilidade. URLs apontam para http://localhost:8080 (fixo, sem variável de ambiente).\n\nANTES DE RODAR: selecione o ambiente 'Base Environment' e troque accountId por um UUID real. A API não tem endpoint de consulta/listagem, e os IDs das 100k contas são gerados aleatoriamente pelo message-generator -- não tem como descobrir um accountId valido so pela API. Consulte direto no Postgres:\n\ndocker exec postgres-itau psql -U itau -d banking -c \"SELECT id FROM accounts LIMIT 5;\"\n\nCole um dos UUIDs retornados no accountId do ambiente. So precisa trocar se resetar o banco ou quiser testar outra conta.",
+      "scope": "collection"
+    },
+    {
+      "_id": "env_itau_base",
+      "_type": "environment",
+      "parentId": "wrk_itau_transactions",
+      "name": "Base Environment",
+      "data": {
+        "accountId": "5b19c8b6-0cc4-4c72-a989-0c2ee15fa975"
+      },
+      "dataPropertyOrder": {
+        "&": ["accountId"]
+      },
+      "color": null,
+      "isPrivate": false,
+      "metaSortKey": 1,
+      "environmentType": "kv"
+    },
+
+    {
+      "_id": "fld_cenarios",
+      "_type": "request_group",
+      "parentId": "wrk_itau_transactions",
+      "name": "1. Cenários do enunciado",
+      "description": "Crédito aprovado, débito aprovado, débito recusado por saldo insuficiente.",
+      "metaSortKey": 1000
+    },
+    {
+      "_id": "req_credito_aprovado",
+      "_type": "request",
+      "parentId": "fld_cenarios",
+      "name": "Crédito aprovado",
+      "description": "Espera HTTP 200, transaction.status = SUCCEEDED.",
+      "method": "POST",
+      "url": "http://localhost:8080/transactions/8e8ae808-b154-48b5-9f3e-553935cc4543",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"accountId\": \"{{ _.accountId }}\",\n  \"type\": \"CREDIT\",\n  \"amount\": { \"value\": 100.00, \"currency\": \"BRL\" }\n}"
+      },
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" }
+      ],
+      "parameters": [],
+      "authentication": {},
+      "metaSortKey": 1000,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_debito_aprovado",
+      "_type": "request",
+      "parentId": "fld_cenarios",
+      "name": "Débito aprovado",
+      "description": "Rode depois do 'Crédito aprovado' acima, na mesma conta. Espera HTTP 200, status = SUCCEEDED.",
+      "method": "POST",
+      "url": "http://localhost:8080/transactions/7c1b1a2a-1111-4a2a-9a2a-111111111111",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"accountId\": \"{{ _.accountId }}\",\n  \"type\": \"DEBIT\",\n  \"amount\": { \"value\": 40.00, \"currency\": \"BRL\" }\n}"
+      },
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" }
+      ],
+      "parameters": [],
+      "authentication": {},
+      "metaSortKey": 2000,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_debito_recusado",
+      "_type": "request",
+      "parentId": "fld_cenarios",
+      "name": "Débito recusado (saldo insuficiente)",
+      "description": "Valor bem maior que o saldo. Espera HTTP 200 (nao 4xx), status = FAILED, reason preenchido, saldo inalterado.",
+      "method": "POST",
+      "url": "http://localhost:8080/transactions/9d2c2b3b-2222-4b3b-8b3b-222222222222",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"accountId\": \"{{ _.accountId }}\",\n  \"type\": \"DEBIT\",\n  \"amount\": { \"value\": 999999.00, \"currency\": \"BRL\" }\n}"
+      },
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" }
+      ],
+      "parameters": [],
+      "authentication": {},
+      "metaSortKey": 3000,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global"
+    },
+
+    {
+      "_id": "fld_idempotencia",
+      "_type": "request_group",
+      "parentId": "wrk_itau_transactions",
+      "name": "2. Idempotência",
+      "description": "Reenviar o mesmo transactionId não reprocessa nem redebita.",
+      "metaSortKey": 2000
+    },
+    {
+      "_id": "req_idempotencia",
+      "_type": "request",
+      "parentId": "fld_idempotencia",
+      "name": "Reenvio do mesmo transactionId",
+      "description": "Mesmo transactionId do 'Débito aprovado'. Rode este request DUAS vezes seguidas: a segunda deve devolver exatamente a mesma resposta, sem debitar de novo (confira o saldo).",
+      "method": "POST",
+      "url": "http://localhost:8080/transactions/7c1b1a2a-1111-4a2a-9a2a-111111111111",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"accountId\": \"{{ _.accountId }}\",\n  \"type\": \"DEBIT\",\n  \"amount\": { \"value\": 40.00, \"currency\": \"BRL\" }\n}"
+      },
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" }
+      ],
+      "parameters": [],
+      "authentication": {},
+      "metaSortKey": 1000,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global"
+    },
+
+    {
+      "_id": "fld_corner_cases",
+      "_type": "request_group",
+      "parentId": "wrk_itau_transactions",
+      "name": "3. Corner cases de validação",
+      "description": "Todos devem retornar HTTP 400, exceto o último (conta inexistente, 404).",
+      "metaSortKey": 3000
+    },
+    {
+      "_id": "req_accountid_ausente",
+      "_type": "request",
+      "parentId": "fld_corner_cases",
+      "name": "accountId ausente → 400",
+      "method": "POST",
+      "url": "http://localhost:8080/transactions/3e3e3e3e-3333-4e3e-9e3e-333333333333",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"type\": \"CREDIT\",\n  \"amount\": { \"value\": 10.00, \"currency\": \"BRL\" }\n}"
+      },
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" }
+      ],
+      "parameters": [],
+      "authentication": {},
+      "metaSortKey": 1000,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_type_invalido",
+      "_type": "request",
+      "parentId": "fld_corner_cases",
+      "name": "type inválido (TRANSFER) → 400",
+      "method": "POST",
+      "url": "http://localhost:8080/transactions/4f4f4f4f-4444-4f4f-9f4f-444444444444",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"accountId\": \"{{ _.accountId }}\",\n  \"type\": \"TRANSFER\",\n  \"amount\": { \"value\": 10.00, \"currency\": \"BRL\" }\n}"
+      },
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" }
+      ],
+      "parameters": [],
+      "authentication": {},
+      "metaSortKey": 2000,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_valor_zero",
+      "_type": "request",
+      "parentId": "fld_corner_cases",
+      "name": "amount.value = 0 → 400",
+      "method": "POST",
+      "url": "http://localhost:8080/transactions/5a5a5a5a-5555-4a5a-9a5a-555555555555",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"accountId\": \"{{ _.accountId }}\",\n  \"type\": \"CREDIT\",\n  \"amount\": { \"value\": 0, \"currency\": \"BRL\" }\n}"
+      },
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" }
+      ],
+      "parameters": [],
+      "authentication": {},
+      "metaSortKey": 3000,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_moeda_invalida",
+      "_type": "request",
+      "parentId": "fld_corner_cases",
+      "name": "currency com 2 letras → 400",
+      "method": "POST",
+      "url": "http://localhost:8080/transactions/6b6b6b6b-6666-4b6b-9b6b-666666666666",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"accountId\": \"{{ _.accountId }}\",\n  \"type\": \"CREDIT\",\n  \"amount\": { \"value\": 10.00, \"currency\": \"BR\" }\n}"
+      },
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" }
+      ],
+      "parameters": [],
+      "authentication": {},
+      "metaSortKey": 4000,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_conta_inexistente",
+      "_type": "request",
+      "parentId": "fld_corner_cases",
+      "name": "conta inexistente → 404",
+      "method": "POST",
+      "url": "http://localhost:8080/transactions/7c7c7c7c-7777-4c7c-9c7c-777777777777",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"accountId\": \"00000000-0000-0000-0000-000000000000\",\n  \"type\": \"CREDIT\",\n  \"amount\": { \"value\": 10.00, \"currency\": \"BRL\" }\n}"
+      },
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" }
+      ],
+      "parameters": [],
+      "authentication": {},
+      "metaSortKey": 5000,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global"
+    },
+
+    {
+      "_id": "fld_observabilidade",
+      "_type": "request_group",
+      "parentId": "wrk_itau_transactions",
+      "name": "4. Observabilidade",
+      "description": "Health check, métricas Prometheus e spec OpenAPI.",
+      "metaSortKey": 4000
+    },
+    {
+      "_id": "req_health",
+      "_type": "request",
+      "parentId": "fld_observabilidade",
+      "name": "Health check",
+      "method": "GET",
+      "url": "http://localhost:8080/actuator/health",
+      "parameters": [],
+      "headers": [],
+      "authentication": {},
+      "metaSortKey": 1000,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_prometheus",
+      "_type": "request",
+      "parentId": "fld_observabilidade",
+      "name": "Métricas Prometheus",
+      "method": "GET",
+      "url": "http://localhost:8080/actuator/prometheus",
+      "parameters": [],
+      "headers": [],
+      "authentication": {},
+      "metaSortKey": 2000,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_openapi",
+      "_type": "request",
+      "parentId": "fld_observabilidade",
+      "name": "OpenAPI JSON",
+      "method": "GET",
+      "url": "http://localhost:8080/v3/api-docs",
+      "parameters": [],
+      "headers": [],
+      "authentication": {},
+      "metaSortKey": 3000,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global"
+    }
+  ]
+}
