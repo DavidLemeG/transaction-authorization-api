@@ -9,24 +9,8 @@
       "_type": "workspace",
       "parentId": null,
       "name": "API de Autorização de Transações — Itaú",
-      "description": "Desafio técnico Itaú Unibanco. Crédito/débito, idempotência, corner cases de validação e endpoints de observabilidade. URLs apontam para http://localhost:8080 (fixo, sem variável de ambiente).\n\nANTES DE RODAR: selecione o ambiente 'Base Environment' e troque accountId por um UUID real. A API não tem endpoint de consulta/listagem, e os IDs das 100k contas são gerados aleatoriamente pelo message-generator -- não tem como descobrir um accountId valido so pela API. Consulte direto no Postgres:\n\ndocker exec postgres-itau psql -U itau -d banking -c \"SELECT id FROM accounts LIMIT 5;\"\n\nCole um dos UUIDs retornados no accountId do ambiente. So precisa trocar se resetar o banco ou quiser testar outra conta.",
+      "description": "Desafio técnico Itaú Unibanco. Crédito/débito, idempotência, corner cases de validação e endpoints de observabilidade. URLs fixas em http://localhost:8080, sem variável de ambiente.\n\nANTES DE RODAR: em cada requisição que tem corpo, troque \"UUID_ESPECIFICO\" pelo UUID de uma conta real. A API não tem endpoint de consulta/listagem, e os IDs das 100k contas são gerados aleatoriamente pelo message-generator -- não tem como descobrir um accountId valido so pela API. Consulte direto no Postgres:\n\ndocker exec postgres-itau psql -U itau -d banking -c \"SELECT id FROM accounts LIMIT 5;\"",
       "scope": "collection"
-    },
-    {
-      "_id": "env_itau_base",
-      "_type": "environment",
-      "parentId": "wrk_itau_transactions",
-      "name": "Base Environment",
-      "data": {
-        "accountId": "5b19c8b6-0cc4-4c72-a989-0c2ee15fa975"
-      },
-      "dataPropertyOrder": {
-        "&": ["accountId"]
-      },
-      "color": null,
-      "isPrivate": false,
-      "metaSortKey": 1,
-      "environmentType": "kv"
     },
 
     {
@@ -47,7 +31,7 @@
       "url": "http://localhost:8080/transactions/8e8ae808-b154-48b5-9f3e-553935cc4543",
       "body": {
         "mimeType": "application/json",
-        "text": "{\n  \"accountId\": \"{{ _.accountId }}\",\n  \"type\": \"CREDIT\",\n  \"amount\": { \"value\": 100.00, \"currency\": \"BRL\" }\n}"
+        "text": "{\n  \"accountId\": \"UUID_ESPECIFICO\",\n  \"type\": \"CREDIT\",\n  \"amount\": { \"value\": 100.00, \"currency\": \"BRL\" }\n}"
       },
       "headers": [
         { "name": "Content-Type", "value": "application/json" }
@@ -72,7 +56,7 @@
       "url": "http://localhost:8080/transactions/7c1b1a2a-1111-4a2a-9a2a-111111111111",
       "body": {
         "mimeType": "application/json",
-        "text": "{\n  \"accountId\": \"{{ _.accountId }}\",\n  \"type\": \"DEBIT\",\n  \"amount\": { \"value\": 40.00, \"currency\": \"BRL\" }\n}"
+        "text": "{\n  \"accountId\": \"UUID_ESPECIFICO\",\n  \"type\": \"DEBIT\",\n  \"amount\": { \"value\": 40.00, \"currency\": \"BRL\" }\n}"
       },
       "headers": [
         { "name": "Content-Type", "value": "application/json" }
@@ -97,7 +81,7 @@
       "url": "http://localhost:8080/transactions/9d2c2b3b-2222-4b3b-8b3b-222222222222",
       "body": {
         "mimeType": "application/json",
-        "text": "{\n  \"accountId\": \"{{ _.accountId }}\",\n  \"type\": \"DEBIT\",\n  \"amount\": { \"value\": 999999.00, \"currency\": \"BRL\" }\n}"
+        "text": "{\n  \"accountId\": \"UUID_ESPECIFICO\",\n  \"type\": \"DEBIT\",\n  \"amount\": { \"value\": 999999.00, \"currency\": \"BRL\" }\n}"
       },
       "headers": [
         { "name": "Content-Type", "value": "application/json" }
@@ -131,7 +115,7 @@
       "url": "http://localhost:8080/transactions/7c1b1a2a-1111-4a2a-9a2a-111111111111",
       "body": {
         "mimeType": "application/json",
-        "text": "{\n  \"accountId\": \"{{ _.accountId }}\",\n  \"type\": \"DEBIT\",\n  \"amount\": { \"value\": 40.00, \"currency\": \"BRL\" }\n}"
+        "text": "{\n  \"accountId\": \"UUID_ESPECIFICO\",\n  \"type\": \"DEBIT\",\n  \"amount\": { \"value\": 40.00, \"currency\": \"BRL\" }\n}"
       },
       "headers": [
         { "name": "Content-Type", "value": "application/json" }
@@ -188,7 +172,7 @@
       "url": "http://localhost:8080/transactions/4f4f4f4f-4444-4f4f-9f4f-444444444444",
       "body": {
         "mimeType": "application/json",
-        "text": "{\n  \"accountId\": \"{{ _.accountId }}\",\n  \"type\": \"TRANSFER\",\n  \"amount\": { \"value\": 10.00, \"currency\": \"BRL\" }\n}"
+        "text": "{\n  \"accountId\": \"UUID_ESPECIFICO\",\n  \"type\": \"TRANSFER\",\n  \"amount\": { \"value\": 10.00, \"currency\": \"BRL\" }\n}"
       },
       "headers": [
         { "name": "Content-Type", "value": "application/json" }
@@ -212,7 +196,7 @@
       "url": "http://localhost:8080/transactions/5a5a5a5a-5555-4a5a-9a5a-555555555555",
       "body": {
         "mimeType": "application/json",
-        "text": "{\n  \"accountId\": \"{{ _.accountId }}\",\n  \"type\": \"CREDIT\",\n  \"amount\": { \"value\": 0, \"currency\": \"BRL\" }\n}"
+        "text": "{\n  \"accountId\": \"UUID_ESPECIFICO\",\n  \"type\": \"CREDIT\",\n  \"amount\": { \"value\": 0, \"currency\": \"BRL\" }\n}"
       },
       "headers": [
         { "name": "Content-Type", "value": "application/json" }
@@ -236,7 +220,7 @@
       "url": "http://localhost:8080/transactions/6b6b6b6b-6666-4b6b-9b6b-666666666666",
       "body": {
         "mimeType": "application/json",
-        "text": "{\n  \"accountId\": \"{{ _.accountId }}\",\n  \"type\": \"CREDIT\",\n  \"amount\": { \"value\": 10.00, \"currency\": \"BR\" }\n}"
+        "text": "{\n  \"accountId\": \"UUID_ESPECIFICO\",\n  \"type\": \"CREDIT\",\n  \"amount\": { \"value\": 10.00, \"currency\": \"BR\" }\n}"
       },
       "headers": [
         { "name": "Content-Type", "value": "application/json" }
